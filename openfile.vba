@@ -144,3 +144,62 @@ Sub Button3_Click()
     Worksheets(shtname).Range("A2").Resize(usedR, usedC).Clear
     
 End Sub
+
+Sub Button4_Click()
+    
+    Dim shtname, rawname As String
+    shtname = Worksheets("Control").Range("D15").Value
+    rawname = Worksheets("Control").Range("D12").Value
+    Dim wkyear As Integer
+    wkyear = Worksheets("Control").Range("D16").Value
+    Worksheets(rawname).Activate
+    
+    Dim sht, raw As Worksheet
+    Dim rng As Range
+    Set sht = Worksheets(shtname)
+    Set raw = Worksheets(rawname)
+    Set rng = sht.Range("B2:B24")
+    Dim item As Range
+    For Each item In rng
+        Select Case item.Value
+            Case Is = "BDC In"
+                Call bdcin(sht, raw, wkyear)
+            Case Is = "BDC T2 In"
+                'MsgBox "BDC T2 In"
+            Case Else
+                'MsgBox "nothing"
+            End Select
+    Next
+End Sub
+
+Private Sub bdcin(ByVal sht As Worksheet, raw As Worksheet, wkyear As Integer)
+    Dim created As Integer
+    Dim usedR, usedC As Integer
+    usedR = raw.UsedRange.Rows.Count - 1
+    usedC = raw.UsedRange.Columns.Count - 1
+    
+    created = 1
+    Do While created <= usedC And Cells(1, created).Value <> "Month: Created"
+        created = created + 1
+    Loop
+    
+    Dim r As Integer
+    Dim inflowMonth As String
+    Dim dateRng, tmpRng As Range
+    Set dateRng = sht.Range("C1:N1")
+    For Each tmpRng In dateRng
+        inflowMonth = tmpRng.Value & ", " & wkyear
+        Dim cnt As Integer
+        cnt = 0
+        For r = 2 To usedR
+            Dim tmpdate As String
+            tmpdate = raw.Rows(r).Cells(1, created).Value
+            If Year(tmpdate) = Year(inflowMonth) Then
+                If Month(tmpdate) = Month(inflowMonth) Then
+                    cnt = cnt + 1
+                End If
+            End If
+        Next
+        tmpRng.Offset(1, 0).Value = cnt
+    Next
+End Sub
