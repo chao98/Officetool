@@ -1,6 +1,6 @@
 Option Explicit
 
-Sub Button1_Click()
+Sub open_Click()
     Dim filename As String
     Dim fd As Office.FileDialog
     
@@ -42,7 +42,7 @@ Sub preCopyCheck(ByVal srcsht, tgtsht As String)
     End If
 End Sub
 
-Sub Button2_Click()
+Sub copy_Click()
     
     Dim srcwb, tgtwb As Workbook
     Dim srcfn As String
@@ -59,10 +59,11 @@ Sub Button2_Click()
     
     Dim tgtRng, tgtElem As Range
     Dim srcRng, srcElem As Range
-    Dim tgtUsedC, srcUsedC As Integer
+    Dim tgtUsedC, srcUsedC, srcUsedR As Integer
     tgtUsedC = tgtsht.UsedRange.Columns.Count + 1
     Set tgtRng = tgtsht.Range("A1").Resize(1, tgtUsedC)
     srcUsedC = srcsht.UsedRange.Columns.Count + 1
+    srcUsedR = srcsht.UsedRange.Rows.Count + 1
     Set srcRng = srcsht.Range("A1").Resize(1, srcUsedC)
     
     'tgtsht.Activate
@@ -73,11 +74,25 @@ Sub Button2_Click()
         For Each srcElem In srcRng
             srcTitle = srcElem.Value
             If srcTitle = tgtTitle Then
-                srcElem.Offset(1, 0).Resize(250, 1).Copy tgtElem.Offset(1, 0)
+                srcElem.Offset(1, 0).Resize(srcUsedR, 1).Copy tgtElem.Offset(1, 0)
             ElseIf srcTitle = "CSR Number - Key" Then
-                srcElem.Offset(1, 0).Resize(250, 1).Copy tgtsht.Range("A1").Offset(1, 0)
+                srcElem.Offset(1, 0).Resize(srcUsedR, 1).Copy tgtsht.Range("A1").Offset(1, 0)
+            'ElseIf srcTitle = "Date: Last GS->LS" Then
+            '    srcElem.Offset(1, 0).Resize(srcUsedR, 1).Copy tgtsht.Range("AB1").Offset(1, 0)
             End If
         Next
+        
+        'If tgtTitle = "Date: Last GS->LS" Then
+        '    Dim tmpsht As Worksheet
+        '    Set tmpsht = srcwb.Worksheets(1)
+        '    Dim i As Integer
+        '    For i = 1 To srcUsedC
+        '        If tmpsht.Cells(1, i).Value = tgtTitle Then
+        '            Exit For
+        '        End If
+        '    Next
+        '    tmpsht.Cells(1, i).Offset(1, 0).Resize(srcUsedR, 1).Copy tgtsht.Range("AB1").Offset(1, 0)
+        'End If
     Next
     tgtsht.Activate
     tgtsht.Range("A2").Select
@@ -115,7 +130,7 @@ Sub Button2_Click_old()
     
 End Sub
 
-Sub Button3_Click()
+Sub Clean_Click()
     Dim shtname As String
     shtname = ActiveSheet.Range("D7").Value
     If shtname = "" Then
@@ -145,7 +160,7 @@ Sub Button3_Click()
     
 End Sub
 
-Sub Button4_Click()
+Sub inflow_Click()
     
     Dim shtname, rawname As String
     shtname = Worksheets("Control").Range("D15").Value
@@ -158,48 +173,164 @@ Sub Button4_Click()
     Dim rng As Range
     Set sht = Worksheets(shtname)
     Set raw = Worksheets(rawname)
-    Set rng = sht.Range("B2:B24")
-    Dim item As Range
-    For Each item In rng
-        Select Case item.Value
-            Case Is = "BDC In"
-                Call bdcin(sht, raw, wkyear)
+    'Set rng = sht.Range("B2:B24")
+    'Dim item As Range
+    Dim i As Integer
+    'For Each item In rng
+    For i = 2 To 24
+        Select Case sht.Cells(i, "B").Value
+            Case Is = "eMBMS In"
+                Call cntin(shtname, rawname, wkyear, "Month: Created", i - 1)
+            Case Is = "T2 In"
+                Call cntin(shtname, rawname, wkyear, "Date: First LS->GS", i - 1)
+            Case Is = "T2 Out"
+                Call cntin(shtname, rawname, wkyear, "Date: Last GS->LS", i - 1)
+            Case Is = "T2 Open"
+                Call bdct2in(shtname, rawname, wkyear, "Date: Last GS->LS", "", i - 1)
             Case Is = "BDC T2 In"
-                'MsgBox "BDC T2 In"
+                Call bdct2in(shtname, rawname, wkyear, "Node Type", "LINUX BROADCAST DELIVERY CENTER", i - 1)
+            Case Is = "BMC T2 In"
+                Call bdct2in(shtname, rawname, wkyear, "Node Type", "LINUX BROADCAST MANAGEMENT CENTER", i - 1)
+            Case Is = "T2 Low"
+                Call bdct2in(shtname, rawname, wkyear, "Severity", "Low", i - 1)
+            Case Is = "T2 Medium"
+                Call bdct2in(shtname, rawname, wkyear, "Severity", "Medium", i - 1)
+            Case Is = "T2 High"
+                Call bdct2in(shtname, rawname, wkyear, "Severity", "High", i - 1)
+            Case Is = "T2 Hot"
+            Case Is = "T2 Emergency"
+                Call bdct2in(shtname, rawname, wkyear, "Severity", "Emergency", i - 1)
+            Case Is = "T2 Consultant"
+                Call bdct2in(shtname, rawname, wkyear, "CSR Type", "Consultant", i - 1)
+            Case Is = "T2 Internal"
+                Call bdct2in(shtname, rawname, wkyear, "CSR Type", "Internal", i - 1)
+            Case Is = "T2 Problem"
+                Call bdct2in(shtname, rawname, wkyear, "CSR Type", "Problem", i - 1)
+            Case Is = "T2 Project"
+                Call bdct2in(shtname, rawname, wkyear, "CSR Type", "Project", i - 1)
             Case Else
                 'MsgBox "nothing"
             End Select
     Next
 End Sub
 
-Private Sub bdcin(ByVal sht As Worksheet, raw As Worksheet, wkyear As Integer)
-    Dim created As Integer
+Private Function findTitle(ByVal raw As Worksheet, title As String)
+    Dim pos, rawCols As Byte
+    
+    rawCols = raw.UsedRange.Columns.Count - 1
+    
+    For pos = 1 To rawCols
+        If raw.Cells(1, pos).Value = title Then
+            Exit For
+        End If
+    Next
+
+    findTitle = pos
+    
+End Function
+
+Private Function cntRowsCondition(ByVal raw As Worksheet, ByVal pos1 As Integer, ByVal cond1 As String, ByVal pos2 As Integer, ByVal cond2 As String)
+    Dim rawRows As Integer
+    rawRows = raw.UsedRange.Rows.Count - 1
+    
+    Dim i, cnt As Integer
+    cnt = 0
+    For i = 2 To rawRows
+        Dim cell1, cell2 As Range
+        Set cell1 = raw.Rows(i).Cells(1, pos1)
+        'MsgBox i & " : " & cell1
+        If cell1.Value <> "" Then
+            If Year(cond1) = Year(cell1.Value) And Month(cond1) = Month(cell1.Value) Then
+                Set cell2 = raw.Rows(i).Cells(1, pos2)
+                If cell2.Value = cond2 Then
+                    cnt = cnt + 1
+                End If
+            End If
+        End If
+    Next
+    
+    cntRowsCondition = cnt
+    
+End Function
+
+Private Sub bdct2in(ByVal shtname, rawname As String, ByVal wkyear As Integer, ByVal chktitle As String, ByVal chkcond As String, ByVal Oset As Integer)
+    Dim raw, inflow As Worksheet
+    Set raw = ThisWorkbook.Worksheets(rawname)
+    Set inflow = ThisWorkbook.Worksheets(shtname)
+    
+    
+    Dim rawCols, rawRows As Byte
+    rawRows = raw.UsedRange.Rows.Count - 1
+    rawCols = raw.UsedRange.Columns.Count - 1
+    'MsgBox rawRows & " : " & rawCols
+    
+    Dim title As String
+
+    Dim pos1, pos2 As Byte
+    title = "Date: First LS->GS"
+    pos1 = findTitle(raw, title)
+    'MsgBox pos1
+    title = chktitle
+    pos2 = findTitle(raw, title)
+    'MsgBox pos2
+    
+    Dim cond1, cond2 As String
+    'cond1 = "feb 2016"
+    cond2 = chkcond
+    
+    Dim rng, tmpRng As Range
+    Set rng = inflow.Range("C1:N1")
+    
+    For Each tmpRng In rng
+        cond1 = tmpRng.Value & " " & wkyear
+        Dim cnt As Integer
+        cnt = cntRowsCondition(raw, pos1, cond1, pos2, cond2)
+        tmpRng.Offset(Oset, 0).Value = cnt
+    Next
+
+    'MsgBox cnt
+    
+End Sub
+
+
+
+Private Sub cntin(ByVal shtname As String, rawname As String, ByVal wkyear As Integer, str As String, Oset As Integer)
     Dim usedR, usedC As Integer
+    Dim sht, raw As Worksheet
+    'MsgBox shtname & " : " & rawname
+    Set sht = Worksheets(shtname)
+    Set raw = Worksheets(rawname)
+    
     usedR = raw.UsedRange.Rows.Count - 1
     usedC = raw.UsedRange.Columns.Count - 1
+    sht.Activate
     
-    created = 1
-    Do While created <= usedC And Cells(1, created).Value <> "Month: Created"
-        created = created + 1
+    Dim pos As Integer
+    pos = 1
+    Do While pos <= usedC And raw.Cells(1, pos).Value <> str
+        pos = pos + 1
     Loop
     
     Dim r As Integer
-    Dim inflowMonth As String
+    Dim inflowDate As String
     Dim dateRng, tmpRng As Range
     Set dateRng = sht.Range("C1:N1")
     For Each tmpRng In dateRng
-        inflowMonth = tmpRng.Value & ", " & wkyear
+        inflowDate = tmpRng.Value & ", " & wkyear
         Dim cnt As Integer
         cnt = 0
         For r = 2 To usedR
             Dim tmpdate As String
-            tmpdate = raw.Rows(r).Cells(1, created).Value
-            If Year(tmpdate) = Year(inflowMonth) Then
-                If Month(tmpdate) = Month(inflowMonth) Then
-                    cnt = cnt + 1
+            tmpdate = raw.Rows(r).Cells(1, pos).Value
+            'MsgBox tmpdate & " : " & inflowDate
+            If tmpdate <> "" Then
+                If Year(tmpdate) = Year(inflowDate) Then
+                    If Month(tmpdate) = Month(inflowDate) Then
+                        cnt = cnt + 1
+                    End If
                 End If
             End If
         Next
-        tmpRng.Offset(1, 0).Value = cnt
+        tmpRng.Offset(Oset, 0).Value = cnt
     Next
 End Sub
